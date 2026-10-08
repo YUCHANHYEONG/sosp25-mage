@@ -28,7 +28,7 @@
 #include <rdma/rdma_cm.h>
 #include <linux/inet.h>
 
-#define MIND_RDMA_IB_DEVNAME "mlx5_0"
+#define MIND_RDMA_IB_DEVNAME "irdma0"
 
 // Parameters for CN and FH.
 #define MIND_RDMA_FHQP_TRANSMISSION_DEPTH 1

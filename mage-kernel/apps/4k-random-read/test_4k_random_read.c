@@ -36,6 +36,9 @@ struct worker_args {
     int num_workers;
     bool thread_leader;
     uint64_t benchmark_ops;
+
+    uint32_t *page_order;
+    size_t num_pages;
 };
 
 static struct timespec diff_timespec(struct timespec *t1, struct timespec *t0)
@@ -64,11 +67,12 @@ static void workload_function(struct worker_args *args)
     int thread_id = args->thread_id;
     int num_threads = args->num_workers;
 
-    // Calculate the chunk size for each thread
-    size_t chunk_size = array_size / num_threads;
-    size_t start_index = chunk_size * (thread_id - 1);
-    size_t end_index = (thread_id == num_threads)
-        ? array_size : chunk_size * thread_id;
+    /*
+     * Each thread receives a fixed random permutation of its pages.
+     * Randomization is prepared before the benchmark starts.
+     */
+    uint32_t *page_order = args->page_order;
+    size_t num_pages = args->num_pages;
 
     struct timespec start_time, last_heartbeat_time;
     clock_gettime(CLOCK_MONOTONIC, &start_time);
@@ -89,13 +93,23 @@ static void workload_function(struct worker_args *args)
     bool app_measurement_started = false;
     uint64_t app_start_ops = 0;
     uint64_t app_end_ops = 0;
+    /*
+     * Strong Random Read:
+     * one application access per randomly selected 4 KiB page.
+     */
     uint64_t ops_per_sweep =
-        ((uint64_t)(end_index - start_index) + 1023) / 1024;
+        (uint64_t)num_pages;
 
     while(true) { 
         iteration++;
 
-        for (size_t i = start_index; i < end_index; i += 1024) {
+        for (size_t p = 0; p < num_pages; p++) {
+            /*
+             * Visit one randomly ordered 4 KiB page and perform
+             * exactly one application-level memory access.
+             */
+            size_t i = (size_t)page_order[p] * 4096;
+
             acc += data[i] + frobnicate(i, iteration);
 
             iterations_since_check++;
@@ -106,15 +120,17 @@ static void workload_function(struct worker_args *args)
                 clock_gettime(CLOCK_MONOTONIC, &current_time);
                 thread_runtime = diff_timespec(&current_time, &start_time);
 
+                uint64_t current_ops =
+                    (iteration - 1) * ops_per_sweep +
+                    (uint64_t)p + 1;
+
                 /*
                  * Snapshot application progress at the beginning
                  * of the measurement interval.
                  */
                 if (!app_measurement_started &&
                         thread_runtime.tv_sec >= warmup_duration) {
-                    app_start_ops =
-                        (iteration - 1) * ops_per_sweep +
-                        ((uint64_t)(i - start_index) / 1024) + 1;
+                    app_start_ops = current_ops;
                     app_measurement_started = true;
                 }
 
@@ -124,9 +140,7 @@ static void workload_function(struct worker_args *args)
                 }
 
                 if (thread_runtime.tv_sec >= warmup_duration + benchmark_duration) {
-                    app_end_ops =
-                        (iteration - 1) * ops_per_sweep +
-                        ((uint64_t)(i - start_index) / 1024) + 1;
+                    app_end_ops = current_ops;
 
                     if (args->thread_leader)
                          assert(started_benchmarks == true);
@@ -214,11 +228,58 @@ int main(int argc, char* argv[]) {
 
     // Initialize thread arguments.
     struct worker_args worker_args[num_workers];
-    for (int i = 0; i < num_workers; i++) {
-        worker_args[i].thread_id = i + 1;
-        worker_args[i].thread_leader = (i == 0);
-        worker_args[i].num_workers = num_workers;
-        worker_args[i].benchmark_ops = 0;
+
+    /*
+     * 4 GiB / 4 KiB = 1,048,576 pages.
+     * Store one 32-bit page number per page (~4 MiB total).
+     */
+    size_t total_pages = array_size / 4096;
+    uint32_t *page_order =
+        malloc(total_pages * sizeof(*page_order));
+
+    if (page_order == NULL) {
+        printf("Page order allocation failed.\n");
+        free(data);
+        return 1;
+    }
+
+    for (int t = 0; t < num_workers; t++) {
+        size_t first_page =
+            total_pages * (size_t)t / num_workers;
+        size_t last_page =
+            total_pages * (size_t)(t + 1) / num_workers;
+        size_t nr_pages = last_page - first_page;
+
+        worker_args[t].thread_id = t + 1;
+        worker_args[t].thread_leader = (t == 0);
+        worker_args[t].num_workers = num_workers;
+        worker_args[t].benchmark_ops = 0;
+        worker_args[t].page_order = &page_order[first_page];
+        worker_args[t].num_pages = nr_pages;
+
+        for (size_t j = 0; j < nr_pages; j++)
+            page_order[first_page + j] =
+                (uint32_t)(first_page + j);
+
+        /*
+         * Deterministic Fisher-Yates shuffle.
+         * This happens before benchmark execution, so RNG overhead
+         * is not included in Application Ops/s.
+         */
+        uint64_t rng = 0x9e3779b97f4a7c15ULL ^ (uint64_t)(t + 1);
+
+        for (size_t j = nr_pages; j > 1; j--) {
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+
+            size_t k = (size_t)(rng % j);
+
+            uint32_t tmp = page_order[first_page + j - 1];
+            page_order[first_page + j - 1] =
+                page_order[first_page + k];
+            page_order[first_page + k] = tmp;
+        }
     }
 
     // Spawn worker threads, don't let them start the workload though.
@@ -279,6 +340,7 @@ int main(int argc, char* argv[]) {
     }
     fclose(null_file);
 
+    free(page_order);
     free(data);
     return 0;
 }

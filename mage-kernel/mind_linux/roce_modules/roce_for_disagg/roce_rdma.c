@@ -18,7 +18,7 @@ struct mind_mr_info
 	uint32_t num_qps;     // y: During first CN->MN, CN sets this field to set # parallel QPs.
 };
 
-char* mn_server_ip = "10.10.10.202";
+char* mn_server_ip = "192.168.100.114";
 char* mn_server_port_start = "58675";
 // Every QP sets up its connection on a different port. This var tracks the "current" (max) used
 // port, so subsequent connections know which port to use.
@@ -749,7 +749,7 @@ static int rdma_cm_handler_route_resolved(struct mind_rdma_cm_state *cm)
 	// Copied from user-space client.
 	// HARD CODED to NIC max under assumption remote NIC is the same.
 	param.responder_resources = 1; // max number of outstanding reqs we accept from remote
-	param.initiator_depth = 16;     // max outstanding reqs _we_ will emit.
+	param.initiator_depth = 8;     // max outstanding reqs _we_ will emit.
 
 	// param.responder_resources = queue->dev->dev->attrs.max_qp_rd_atom;
 	/* maximum retry count */
@@ -763,9 +763,9 @@ static int rdma_cm_handler_route_resolved(struct mind_rdma_cm_state *cm)
 	priv.num_qps = rdma_state->num_cnqps + rdma_state->num_fhqps;
 
 	pr_rdma("Initiating rdma_connect\n");
-	ret = rdma_connect_locked(cm->cm_id, &param);
+	ret = rdma_connect(cm->cm_id, &param);
 	if (ret) {
-		pr_err("rdma_connect_locked failed (%d).\n", ret);
+		pr_err("rdma_connect failed (%d).\n", ret);
 		return ret;
 	}
 
@@ -1018,43 +1018,44 @@ static void mind_rdma_initialize_conns(void)
 	}
 }
 
-static int add_ib_client(struct ib_device *ib_device)
+static void add_ib_client(struct ib_device *ib_device)
 {
-	int ret = 0;
-	pr_rdma("ROCE_RDMA: ib_register_client called on device %s\n",
-			ib_device->name);
-	if (!rdma_state) {
-		pr_err("rdma_state is NULL\n");
-		return 1;
-	}
-	if (strcmp(ib_device->name, MIND_RDMA_IB_DEVNAME) != 0) {
-		pr_rdma("ROCE_RDMA: skipping unrecognized ib device (%s)\n",
-				ib_device->name);
-		return 0;
-	}
+        int ret = 0;
 
-	rdma_state->dev = ib_device;
+        pr_rdma("ROCE_RDMA: ib_register_client called on device %s\n",
+                        ib_device->name);
 
-	pr_rdma("ROCE_RDMA: creating PD\n");
-	ret = mind_rdma_create_pd(rdma_state);
-	if (ret)
-		return 1;
+        if (!rdma_state) {
+                pr_err("rdma_state is NULL\n");
+                return;
+        }
 
-	ret = mind_rdma_create_cqs(rdma_state);
-	if (ret) {
-		pr_err("couldn't create CQ: error code %d\n", ret);
-		return 1;
-	}
+        if (strcmp(ib_device->name, MIND_RDMA_IB_DEVNAME) != 0) {
+                pr_rdma("ROCE_RDMA: skipping unrecognized ib device (%s)\n",
+                                ib_device->name);
+                return;
+        }
 
-	pr_rdma("ROCE_RDMA: initializing RDMA CM connections\n");
-	mind_rdma_initialize_conns();
+        rdma_state->dev = ib_device;
 
-	pr_info("ROCE_RDMA: CM handlers finished! Testing RDMA...\n");
-	mind_rdma_init_test();
+        pr_rdma("ROCE_RDMA: creating PD\n");
+        ret = mind_rdma_create_pd(rdma_state);
+        if (ret)
+                return;
 
-	complete(&rdma_state->init_done);
-	return 0;
+        ret = mind_rdma_create_cqs(rdma_state);
+        if (ret) {
+                pr_err("couldn't create CQ: error code %d\n", ret);
+                return;
+        }
 
+        pr_rdma("ROCE_RDMA: initializing RDMA CM connections\n");
+        mind_rdma_initialize_conns();
+
+        pr_info("ROCE_RDMA: CM handlers finished! Testing RDMA...\n");
+        mind_rdma_init_test();
+
+        complete(&rdma_state->init_done);
 }
 
 static void remove_ib_client(struct ib_device *ib_device, void *client_data)

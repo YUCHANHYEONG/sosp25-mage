@@ -22,7 +22,7 @@
 // Manually Set Parameters
 
 // y: keep this in sync with `network_fit_disagg.h`!
-#define DISAGG_NUM_CORES 54
+#define DISAGG_NUM_CORES 128
 #define DISAGG_TCP_HANDLER_CPU 0
 #define DISAGG_FIRST_ASSIGNABLE_CPU 2
 #define DISAGG_LAST_ASSIGNABLE_CPU (DISAGG_NUM_CORES - 1)
@@ -49,13 +49,13 @@
 // (131072UL)    // 0.5 GB
 // (262144UL)    // 1 GiB
 // (524288UL)    // 2 GB
-#define CNTHREAD_MAX_CACHE_BLOCK_NUMBER (262144UL)
+#define CNTHREAD_MAX_CACHE_BLOCK_NUMBER 314624UL
 
 #define CNTHREAD_CACHELINE_MASK PAGE_MASK
 // "0.9" := evictor threads will activate when local memory is 90% occupied. 
 // Please keep it as low as possible...reduces evictor threads "overshooting". 
 // TODO(yash): try setting this to 0.5 after the current AE replications are due. 
-#define CNTHREAD_CACHED_PRESSURE        0.5
+#define CNTHREAD_CACHED_PRESSURE 0.5
 #define CNTHREAD_HEARTBEAT_IN_MS 1000
 // Reclaim operates while holding mmap_sem.
 // Periodically, it shoud drop mmap_sem (so `munmap`, `mmap` can make forward progress).

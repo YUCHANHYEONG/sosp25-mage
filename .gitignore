@@ -1,1 +1,70 @@
 **/.vscode/
+
+# Editor temporary files
+*.swp
+*.swo
+
+# Backup/original files
+*.bak
+*.orig
+*.original
+*.before-*
+
+# Cscope
+cscope.out
+
+# Build artifacts
+*.o
+*.ko
+*.a
+*.so
+*.mod
+*.mod.c
+*.cmd
+*.order
+Module.symvers
+
+# Application binaries
+**/bin/*
+
+# Linux kernel build outputs
+*.o
+*.o.*
+*.a
+*.s
+*.ko
+*.ko.*
+*.mod
+*.mod.c
+*.cmd
+*.d
+*.dtb
+*.dtbo
+*.gz
+
+modules.order
+Module.symvers
+modules.builtin
+modules.builtin.modinfo
+System.map
+vmlinux
+vmlinux.o
+vmlinux.a
+
+.tmp_*
+.tmp_versions/
+.tmp_vmlinux*
+
+include/generated/
+include/config/
+arch/*/include/generated/
+
+# Kernel boot images
+arch/x86/boot/bzImage
+
+# Misc build output
+*.symtypes
+*.gcno
+*.gcda
+*.su
+*.lst

@@ -417,7 +417,7 @@ LINUXINCLUDE    := \
 		$(if $(KBUILD_SRC), -I$(srctree)/include) \
 		-I$(objtree)/include \
 		$(USERINCLUDE) \
-		-I$(OFA_KDIR)/include
+		
 
 
 KBUILD_AFLAGS   := -D__ASSEMBLY__

@@ -1,0 +1,4 @@
+bin/
+*.o
+**/*.csv
+cn*-fh*-bs*-lmem_mib*-logs.*

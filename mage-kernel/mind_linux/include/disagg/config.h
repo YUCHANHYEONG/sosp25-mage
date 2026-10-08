@@ -5,8 +5,8 @@
 
 // Don't write the names of the two macros below, even in comments. 
 // A hacky eval script uses `sed -i` on this file to choose program name. 
-#define TEST_PROGRAM_NAME "test_mltthrd"
-#define TEST_PROGRAM_DIGIT 12
+#define TEST_PROGRAM_NAME "test_random_read"
+#define TEST_PROGRAM_DIGIT 16
 
 #define LAUNCHER_PROGRAM_NAME "launcher_thread"
 #define EXAMPLE_PROGRAM_NAME "exmp_mltthrd"
